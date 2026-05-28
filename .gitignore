@@ -1,0 +1,5 @@
+node_modules/
+cache/
+cookies/*.txt
+.DS_Store
+.vscode/
