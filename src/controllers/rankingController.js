@@ -81,9 +81,52 @@ async function triggerCrawl(req, res, next) {
   }
 }
 
+function getLatestUpdateTime(req, res) {
+  const path = require('path');
+  const fs = require('fs');
+  const cacheDir = path.join(__dirname, '../../cache');
+
+  const result = { sources: {} };
+  let latest = null;
+
+  // 读取爬取状态
+  const crawlPath = path.join(cacheDir, 'last-crawl.json');
+  if (fs.existsSync(crawlPath)) {
+    try {
+      const crawlData = JSON.parse(fs.readFileSync(crawlPath, 'utf-8'));
+      for (const [id, info] of Object.entries(crawlData.sources || {})) {
+        result.sources[id] = { lastCrawlTime: info.lastCrawlTime || null, lastScoreTime: null, status: info.status };
+        if (info.lastCrawlTime && (!latest || info.lastCrawlTime > latest)) {
+          latest = info.lastCrawlTime;
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 读取评分时间
+  const scorePath = path.join(cacheDir, 'scored-rankings.json');
+  if (fs.existsSync(scorePath)) {
+    try {
+      const scoreData = JSON.parse(fs.readFileSync(scorePath, 'utf-8'));
+      for (const [id, records] of Object.entries(scoreData)) {
+        const lastRecord = records?.[records.length - 1];
+        if (lastRecord?.scoredAt) {
+          if (!result.sources[id]) result.sources[id] = { lastCrawlTime: null, lastScoreTime: null, status: null };
+          result.sources[id].lastScoreTime = lastRecord.scoredAt;
+          if (lastRecord.scoredAt > latest) latest = lastRecord.scoredAt;
+        }
+      }
+    } catch (_) {}
+  }
+
+  result.latestUpdateTime = latest;
+  res.json({ success: true, data: result });
+}
+
 module.exports = {
   getAllRankings, getRankingsBySource,
   getSources, getFieldDefinitions,
   getCrawlStatus: getCrawlStatusHandler,
   triggerCrawl,
+  getLatestUpdateTime,
 };

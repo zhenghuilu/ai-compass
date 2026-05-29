@@ -6,6 +6,7 @@ const {
   getFieldDefinitions,
   getCrawlStatus,
   triggerCrawl,
+  getLatestUpdateTime,
 } = require('../controllers/rankingController');
 
 const router = Router();
@@ -16,5 +17,6 @@ router.get('/sources', getSources);
 router.get('/fields', getFieldDefinitions);
 router.get('/crawl/status', getCrawlStatus);
 router.post('/crawl/trigger', triggerCrawl);
+router.get('/updatetime', getLatestUpdateTime);
 
 module.exports = router;
