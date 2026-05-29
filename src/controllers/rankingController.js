@@ -1,6 +1,7 @@
 const { generateRankings, generateRankingsForSource } = require('../services/rankingService');
 const { SOURCES } = require('../config/sources');
 const { getCrawlStatus, executeCrawl } = require('../services/scheduler');
+const { scoreAllSources } = require('../services/llmScoringService');
 
 const FIELD_DEFINITIONS = [
   {
@@ -72,10 +73,17 @@ function getCrawlStatusHandler(req, res) {
 
 async function triggerCrawl(req, res, next) {
   try {
-    res.json({ success: true, message: '开始爬取数据...' });
-    executeCrawl().catch((err) => {
-      console.error('[ManualCrawl] Error:', err.message);
-    });
+    const result = await executeCrawl();
+    res.json({ success: true, message: '爬取完成', data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function triggerScore(req, res, next) {
+  try {
+    const result = await scoreAllSources();
+    res.json({ success: true, message: '评分完成', data: result });
   } catch (err) {
     next(err);
   }
@@ -89,7 +97,6 @@ function getLatestUpdateTime(req, res) {
   const result = { sources: {} };
   let latest = null;
 
-  // 读取爬取状态
   const crawlPath = path.join(cacheDir, 'last-crawl.json');
   if (fs.existsSync(crawlPath)) {
     try {
@@ -103,7 +110,6 @@ function getLatestUpdateTime(req, res) {
     } catch (_) {}
   }
 
-  // 读取评分时间
   const scorePath = path.join(cacheDir, 'scored-rankings.json');
   if (fs.existsSync(scorePath)) {
     try {
@@ -128,5 +134,6 @@ module.exports = {
   getSources, getFieldDefinitions,
   getCrawlStatus: getCrawlStatusHandler,
   triggerCrawl,
+  triggerScore,
   getLatestUpdateTime,
 };

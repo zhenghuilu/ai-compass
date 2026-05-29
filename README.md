@@ -71,7 +71,20 @@ npm run set-cookies
    | `DEEPSEEK_API_KEY` | DeepSeek API Key，用于 LLM 评分 |
    | `PORT` | 端口（Railway 自动分配，无需手动设置） |
 
-4. **部署完成**
+4. **设置 Railway Cron Jobs（替代 node-cron）**
+
+   Railway 免费版实例会在无请求时休眠，`node-cron` 无法可靠触发。改用 Railway 内置的 **Cron Jobs** 功能，它会在指定时间唤醒实例并发送请求。
+
+   进入 Railway Dashboard → 项目 → **Cron Jobs**，添加两条：
+
+   | 频率 (UTC) | 对应 CST | 端点 |
+   |-----------|---------|------|
+   | `0 21 * * *` | 每日 05:00 | `GET /api/v1/crawl/trigger` |
+   | `10 22 * * *` | 每日 06:10 | `GET /api/v1/score/trigger` |
+
+   这两个接口会等待任务完成并返回结果。
+
+5. **部署完成**
 
    部署后 Railway 会自动分配域名，如 `https://ai-compass.up.railway.app`。
 
@@ -86,8 +99,7 @@ npm run set-cookies
 ### 注意事项
 
 - **36kr 反爬**：Railway 上的 IP 会被 36kr WAF 拦截，建议在部署后通过 `npm run set-cookies` 设置 Cookie（需本地执行，Cookie 会随代码部署保存至 `cookies/36kr.txt`）。也可以接受使用 mock 数据。
-- **定时任务**：Railway 使用 UTC 时间，05:00 CST = 21:00 UTC 前一天的 21:00。如需调整时区，可修改 `src/services/scheduler.js` 中的 cron 表达式。
-- **数据持久化**：`cache/` 目录保存在 Railway 的临时文件系统中，重启后会丢失。建议定期手动爬取或接受评分缓存的重置。
+- **数据持久化**：`cache/` 目录保存在 Railway 的临时文件系统中，重启后会丢失。
 
 ### Railway 配置参考
 
