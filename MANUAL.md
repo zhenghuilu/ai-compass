@@ -14,9 +14,14 @@ npm start
 
 服务启动后，访问 `http://localhost:3000`。
 
-定时任务自动注册：
-- **05:00** — 爬取所有数据源
-- **06:10** — LLM 评分
+### 定时任务（仅本地开发有效）
+
+```
+05:00 — 爬取所有数据源（需服务 24 小时运行）
+06:10 — LLM 评分（需服务 24 小时运行）
+```
+
+> 部署到 Railway 时，`node-cron` 因实例休眠无法可靠触发，请改用 Railway Cron Jobs（见第六节）。
 
 ---
 
@@ -54,8 +59,8 @@ Cookie 有效期不定（通常几小时到几天），如果发现 36kr 返回�
 ## 三、手动运行爬取
 
 ```bash
-# 方法一：通过 API 触发
-curl -X POST http://localhost:3000/api/v1/crawl/trigger
+# 方法一：通过 API 触发（同步等待返回）
+curl http://localhost:3000/api/v1/crawl/trigger
 
 # 方法二：直接运行脚本
 node -e "require('./src/services/scheduler').executeCrawl()"
@@ -98,10 +103,11 @@ curl http://localhost:3000/api/v1/crawl/status
 ## 四、手动运行 LLM 评分
 
 ```bash
-node -e "
-const { scoreAllSources } = require('./src/services/llmScoringService');
-scoreAllSources().then(console.log).catch(console.error);
-"
+# 方法一：通过 API 触发（同步等待返回）
+curl http://localhost:3000/api/v1/score/trigger
+
+# 方法二：直接运行脚本
+node -e "require('./src/services/llmScoringService').scoreAllSources()"
 ```
 
 评分逻辑：
@@ -137,7 +143,33 @@ curl http://localhost:3000/api/v1/rankings
 
 ---
 
-## 五、常见问题
+## 五、Railway 部署定时任务
+
+Railway 免费版实例在无请求 30 分钟后会休眠，`node-cron` 无法可靠触发。改用 Railway 内置的 **Cron Jobs**，它会在指定时间唤醒实例并发起 HTTP 请求。
+
+### 配置步骤
+
+进入 Railway Dashboard → 项目 → **Cron Jobs**，添加两条：
+
+| 频率 (UTC) | 对应 CST | 端点（GET） |
+|-----------|---------|------------|
+| `0 21 * * *` | 每日 05:00 | `https://你的域名.up.railway.app/api/v1/crawl/trigger` |
+| `10 22 * * *` | 每日 06:10 | `https://你的域名.up.railway.app/api/v1/score/trigger` |
+
+### 验证
+
+Cron Jobs 配置后，到达指定时间 Railway 会发起 GET 请求，任务完成后返回 JSON 结果。
+
+也可以手动测试：
+
+```bash
+curl https://你的域名.up.railway.app/api/v1/crawl/trigger
+curl https://你的域名.up.railway.app/api/v1/score/trigger
+```
+
+---
+
+## 六、常见问题
 
 ### 36kr 一直返回 mock 数据
 
@@ -151,9 +183,13 @@ Cookie 过期了，重新 `npm run set-cookies`。
 
 查看 `GET /api/v1/crawl/status` 确认爬取状态。如果是 mock 且无缓存，说明该源不可用，等待后续爬虫更新。
 
+### Railway 上定时任务没触发
+
+是否配置了 Cron Jobs？`node-cron` 在 Railway 不可靠，请按第五节的步骤在 Dashboard 中配置。
+
 ---
 
-## 六、数据文件说明
+## 七、数据文件说明
 
 | 文件 | 用途 |
 |------|------|
@@ -182,3 +218,19 @@ Cookie 过期了，重新 `npm run set-cookies`。
 ```
 
 超过 10 条时自动删除最旧记录（FIFO）。
+
+---
+
+## 八、API 一览
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/api/v1/rankings` | 获取全部榜单 |
+| GET | `/api/v1/rankings/:source` | 获取指定源榜单 |
+| GET | `/api/v1/sources` | 获取数据源列表 |
+| GET | `/api/v1/fields` | 获取字段说明 |
+| GET | `/api/v1/crawl/status` | 查看爬取状态 |
+| GET | `/api/v1/crawl/trigger` | 手动触发爬取 |
+| GET | `/api/v1/score/trigger` | 手动触发评分 |
+| GET | `/api/v1/updatetime` | 获取各源更新时间 |
+| GET | `/health` | 健康检查 |
